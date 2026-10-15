@@ -1,0 +1,59 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RoadMind EV - Smart EV Trip Planner</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+:root{--bg:#0b1126;--card:#121a3c;--card2:#18224b;--teal:#12a187;--red:#e5533d;--tx:#e8ecf8;--mu:#8e9ac9;--ln:#26325f}
+*{box-sizing:border-box;margin:0}body{font:14px/1.45 "Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--tx);height:100vh;display:flex}
+aside{width:430px;min-width:430px;height:100vh;overflow-y:auto;padding:20px;background:linear-gradient(180deg,#0e1632,#0b1126);border-right:1px solid var(--ln)}
+#map{flex:1;height:100vh}h1{font:700 24px Georgia,serif}h1 span{color:var(--teal)}.sub{color:var(--mu);font-size:12px;margin:2px 0 14px}
+label{display:block;font-size:11px;letter-spacing:.8px;text-transform:uppercase;color:var(--mu);margin:10px 0 4px}
+input,select{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--ln);background:var(--card);color:var(--tx);font:inherit}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+button{cursor:pointer;border:0;border-radius:12px;padding:12px;font:700 14px inherit;color:#fff;background:linear-gradient(90deg,var(--teal),#1b7fd1);width:100%;margin-top:14px}
+.sw{display:flex;gap:8px;margin-top:10px}.sw div{flex:1;text-align:center;padding:9px;border-radius:10px;background:var(--card);border:1px solid var(--ln);cursor:pointer}.sw .on{background:var(--teal);border-color:var(--teal);font-weight:700}
+.sum{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:16px 0}.sum div{background:var(--card);border-radius:12px;padding:10px;text-align:center;border-top:3px solid var(--teal)}
+.sum b{display:block;font:700 18px Georgia,serif}.sum small{color:var(--mu);font-size:10px;text-transform:uppercase}
+.tl{position:relative;margin-left:14px;border-left:2px dashed var(--ln);padding-left:18px}
+.st{background:var(--card);border:1px solid var(--ln);border-radius:14px;padding:12px;margin-bottom:14px;position:relative;cursor:pointer}
+.st:before{content:attr(data-i);position:absolute;left:-36px;top:12px;width:28px;height:28px;border-radius:50%;background:var(--teal);display:grid;place-items:center;font-weight:700;font-size:12px}
+.st.charge:before{background:var(--red)}.st h3{font:700 16px Georgia,serif}.t{color:var(--mu);font-size:12px}
+.pill{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;margin:4px 4px 0 0;background:var(--card2);color:#c7ceea}.pill.b{background:#3a1a22;color:#ffb3a5}
+.opt{display:flex;gap:10px;padding:8px 0;border-top:1px solid var(--ln);align-items:center}.opt i{font-style:normal;width:22px;height:22px;border-radius:7px;background:var(--card2);display:grid;place-items:center;font-size:12px;color:var(--teal);font-weight:700}
+.opt .n{font-weight:600}.opt small{color:var(--mu)}.opt a{margin-left:auto;color:var(--teal);font-size:12px;text-decoration:none;white-space:nowrap}
+.err{background:#3a1a22;color:#ffb3a5;padding:10px;border-radius:10px;margin-top:12px}.load{text-align:center;color:var(--mu);margin:30px 0}
+.pin{width:30px;height:30px;border-radius:50%;background:var(--teal);color:#fff;display:grid;place-items:center;font:700 13px sans-serif;border:2px solid #fff;box-shadow:0 2px 8px #0008}.pin.r{background:var(--red)}.pin.o{background:#1b7fd1}
+.leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.95) contrast(.9)}
+</style></head><body>
+<aside>
+<h1>RoadMind <span>EV</span></h1><div class="sub">Plan the whole trip at the start: route, timing, charging and the best food stops.</div>
+<label>From</label><input id="o" value="Chennai"><label>To</label><input id="d" value="Coimbatore">
+<div class="row"><div><label>Start time</label><input id="t" type="time" value="08:00"></div><div><label>Vehicle</label><div class="sw" style="margin:0"><div id="bev" class="on">EV</div><div id="bfu">Petrol/Diesel</div></div></div></div>
+<div id="evbox"><div class="row3"><div><label>Battery %</label><input id="soc" type="number" value="90"></div><div><label>Full range km</label><input id="rng" type="number" value="300"></div><div><label>Charger kW</label><input id="kw" type="number" value="50"></div></div>
+<div class="row"><div><label>Battery kWh</label><input id="batt" type="number" value="40"></div><div><label>Skip meals in first (min)</label><input id="skip" type="number" value="45"></div></div></div>
+<button id="go">Plan my trip</button><div id="out"></div>
+</aside><div id="map"></div>
+<script>
+const map=L.map('map').setView([11.5,78],7);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(map);
+let layer=L.layerGroup().addTo(map),ev=true;const $=id=>document.getElementById(id);
+const SY={tea:'T',breakfast:'B',lunch:'L',snack:'S',dinner:'D',night:'N',charge:'⚡'};
+$('bev').onclick=()=>{ev=true;$('bev').className='on';$('bfu').className='';$('evbox').style.display=''};
+$('bfu').onclick=()=>{ev=false;$('bfu').className='on';$('bev').className='';$('evbox').style.display='none'};
+const pin=(ll,txt,c='')=>L.marker(ll,{icon:L.divIcon({html:`<div class="pin ${c}">${txt}</div>`,className:'',iconSize:[30,30],iconAnchor:[15,15]})});
+const dur=m=>Math.floor(m/60)+'h '+String(m%60).padStart(2,'0')+'m';
+function stopCard(s,i){const c=s.charge;const food=s.food.map((f,j)=>`<div class="opt"><i>${j+1}</i><div><div class="n">${f.name}</div><small>${f.dist} km off route${f.rating?` · ★ ${f.rating} (${f.reviews})`:''}${f.info?' · '+f.info:''}</small></div><a target="_blank" href="https://www.google.com/maps/search/?api=1&query=${f.lat},${f.lon}">Map</a></div>`).join('');
+const ch=s.chargers.map(f=>`<div class="opt"><i>⚡</i><div><div class="n">${f.name}</div><small>${f.dist} km · ${f.info}</small></div><a target="_blank" href="https://www.google.com/maps/dir/?api=1&destination=${f.lat},${f.lon}">Go</a></div>`).join('');
+return `<div class="st ${s.meal?'':'charge'}" data-i="${i+1}" onclick="focusStop(${i})"><h3>${s.kind}${s.charge&&s.meal?' + Charge':''}</h3><div class="t">Arrive ${s.arrive_s} · leave ${s.depart_s} · ${s.km} km from start</div>
+<span class="pill">stay ${s.dwell} min</span>${c?`<span class="pill b">⚡ ${c.soc_in}% → ${c.soc_out}% (+${c.add_km} km, ${c.minutes} min)</span>`:''}${s.ev?'':''}
+${food?`<div style="margin-top:8px;color:var(--mu);font-size:11px;letter-spacing:.8px">TOP ${s.food.length} PLACES TO EAT</div>${food}`:''}${ch?`<div style="margin-top:8px;color:var(--mu);font-size:11px;letter-spacing:.8px">CHARGERS NEAR THIS STOP</div>${ch}`:''}${!food&&!ch?'<div class="t">No places found nearby (try a wider area).</div>':''}</div>`}
+let DATA=null;
+window.focusStop=i=>{const s=DATA.stops[i];map.setView([s.lat,s.lon],11);(s.food||[]).forEach((f,j)=>pin([f.lat,f.lon],j+1,'o').addTo(layer).bindPopup(f.name));(s.chargers||[]).forEach(f=>pin([f.lat,f.lon],'⚡','r').addTo(layer).bindPopup(f.name))};
+$('go').onclick=async()=>{$('out').innerHTML='<div class="load">Calculating route, timing, chargers and restaurants for every stop...<br>(takes 10-30 s on the first run)</div>';
+const body={origin:$('o').value,dest:$('d').value,start:$('t').value,ev:ev,soc:$('soc').value,range:$('rng').value,kw:$('kw').value,batt:$('batt').value,skip:$('skip').value};
+try{const r=await(await fetch('/api/plan',{method:'POST',body:JSON.stringify(body)})).json();if(r.error)throw new Error(r.error);DATA=r;layer.clearLayers();
+const line=L.polyline(r.line,{color:'#12a187',weight:5}).addTo(layer);map.fitBounds(line.getBounds(),{padding:[40,40]});
+pin(r.origin_ll,'A','o').addTo(layer);pin(r.dest_ll,'B','o').addTo(layer);r.stops.forEach((s,i)=>pin([s.lat,s.lon],SY[s.icon],s.meal?'':'r').addTo(layer).bindPopup(`<b>${s.kind}</b><br>${s.arrive_s}`));
+$('out').innerHTML=`<div class="sum"><div><b>${r.km} km</b><small>Distance</small></div><div><b>${dur(r.total_min)}</b><small>Door to door</small></div><div><b>${r.arrive_s}${r.days?' +'+r.days+'d':''}</b><small>Arrival</small></div></div>
+<div class="t" style="margin-bottom:12px">Pure driving ${dur(r.drive_min)} · ${r.stops.length} planned stops · best of ${r.alts} route option(s)</div><div class="tl">${r.stops.map(stopCard).join('')||'<div class="t">Short trip - no stops needed.</div>'}</div>`}
+catch(e){$('out').innerHTML=`<div class="err">${e.message}</div>`}};
+</script></body></html>
